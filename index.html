@@ -1,0 +1,1520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="googlebot" content="noindex, nofollow">
+    <title>Cognitive Counsel - Pattern Illumination [BETA]</title>
+    <meta name="description" content="Pattern illumination for self-understanding">
+    <meta name="author" content="Nicole Scheid & Claude (Anthropic)">
+    <meta property="og:image" content="https://cognitivecouncil.com/og-cognitive-counsel.png">
+    <meta property="og:title" content="Cognitive Counsel">
+    <meta property="og:description" content="Deeper self-inquiry through pattern illumination">
+    <meta property="og:url" content="https://cognitivecounsel.com">
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300;1,9..40,400&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        display: ['"Playfair Display"', 'serif'],
+                        body: ['"DM Sans"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body > div:not(#root):not(#cookie-bar) {
+            display: none !important;
+        }
+        * { font-family: 'DM Sans', sans-serif; }
+        h1, h2, h3, .font-display { font-family: 'Playfair Display', serif; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeInSlow {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes breathe {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.05); }
+        }
+        @keyframes revealLine {
+            from { width: 0; }
+            to { width: 100%; }
+        }
+        .animate-fade-in { animation: fadeIn 0.6s ease-out both; }
+        .animate-fade-in-slow { animation: fadeInSlow 1s ease-out both; }
+        .animate-breathe { animation: breathe 3s ease-in-out infinite; }
+        
+        .system-output p { margin-bottom: 0.5em; }
+        .system-output p:last-child { margin-bottom: 0; }
+        .system-output strong { color: #fbbf24; }
+        
+        .expand-content {
+            max-height: 0; overflow: hidden;
+            transition: max-height 0.4s ease-out, opacity 0.3s ease-out;
+            opacity: 0;
+        }
+        .expand-content.open { max-height: 2000px; opacity: 1; }
+        
+        .refine-input {
+            max-height: 0; overflow: hidden;
+            transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+            opacity: 0;
+        }
+        .refine-input.open { max-height: 300px; opacity: 1; }
+
+        /* Stepped reveal transition */
+        .step-enter { animation: fadeIn 0.6s ease-out both; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const WORKER_URL = 'https://transfer.cognitivecouncil.com';
+        const API_URL = 'https://api.cognitivecouncil.com/api/chat';
+
+        // ─── Cookie Bar ───
+        const CookieBar = () => {
+            const [visible, setVisible] = useState(false);
+            useEffect(() => {
+                const consent = localStorage.getItem('cookieConsent');
+                if (consent === null) setVisible(true);
+                else if (consent === 'accepted') loadGA();
+            }, []);
+            const loadGA = () => {
+                if (!document.getElementById('ga-script-counsel')) {
+                    const script = document.createElement('script');
+                    script.id = 'ga-script-counsel';
+                    script.async = true;
+                    script.src = 'https://www.googletagmanager.com/gtag/js?id=G-9S5B92BF60';
+                    document.head.appendChild(script);
+                    window.dataLayer = window.dataLayer || [];
+                    function gtag(){dataLayer.push(arguments);}
+                    window.gtag = gtag;
+                    gtag('js', new Date());
+                    gtag('config', 'G-9S5B92BF60');
+                }
+            };
+            if (!visible) return null;
+            return (
+                <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-sm border-t border-slate-700/50 px-4 py-3">
+                    <div className="max-w-4xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+                        <p className="text-slate-300 text-sm flex-1 min-w-[200px]">
+                            We use Google Analytics to improve this experience.{' '}
+                            <a href="https://policies.google.com/technologies/cookies" target="_blank" rel="noopener" className="text-amber-400/70 hover:text-amber-300 underline">Learn more</a>
+                        </p>
+                        <div className="flex gap-2">
+                            <button onClick={() => { localStorage.setItem('cookieConsent','accepted'); setVisible(false); loadGA(); }}
+                                className="px-4 py-1.5 bg-amber-500/60 hover:bg-amber-500/80 text-white text-sm rounded-lg transition-colors">Accept</button>
+                            <button onClick={() => { localStorage.setItem('cookieConsent','declined'); setVisible(false); }}
+                                className="px-4 py-1.5 bg-slate-700/50 hover:bg-slate-700 text-slate-300 text-sm rounded-lg transition-colors">Decline</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ─── Neural Systems (Counsel-flavoured: pattern focus) ───
+        const neuralSystems = [
+            {
+                id: 'prefrontal',
+                name: 'Prefrontal Cortex',
+                emoji: '🧠',
+                color: 'from-violet-400 to-indigo-500',
+                bgTint: 'border-violet-500/20',
+                warmBg: 'from-violet-950/40 to-indigo-950/40',
+                focus: 'Decision patterns, strategic blind spots'
+            },
+            {
+                id: 'limbic',
+                name: 'Limbic System',
+                emoji: '❤️',
+                color: 'from-rose-400 to-pink-500',
+                bgTint: 'border-rose-500/20',
+                warmBg: 'from-rose-950/40 to-pink-950/40',
+                focus: 'Emotional patterns, what you avoid feeling'
+            },
+            {
+                id: 'basal',
+                name: 'Basal Ganglia',
+                emoji: '⚙️',
+                color: 'from-slate-400 to-zinc-500',
+                bgTint: 'border-slate-500/20',
+                warmBg: 'from-slate-900/40 to-zinc-900/40',
+                focus: 'Behavioral patterns, the gap between what you say and do'
+            },
+            {
+                id: 'default',
+                name: 'Default Mode Network',
+                emoji: '🌊',
+                color: 'from-teal-400 to-cyan-500',
+                bgTint: 'border-teal-500/20',
+                warmBg: 'from-teal-950/40 to-cyan-950/40',
+                focus: 'Identity patterns, the story you live without knowing it'
+            },
+            {
+                id: 'salience',
+                name: 'Salience Network',
+                emoji: '⚡',
+                color: 'from-amber-400 to-orange-500',
+                bgTint: 'border-amber-500/20',
+                warmBg: 'from-amber-950/40 to-orange-950/40',
+                focus: 'Attention patterns, what you focus on to avoid what matters'
+            }
+        ];
+
+        // ─── Voice-driven prompts for pattern illumination ───
+        const getCounselPrompt = (system, patternQuery, councilContext = '', flinchData = null, isRefinement = false, previousResponse = '', refinementText = '') => {
+            const voices = {
+                prefrontal: `You are the Prefrontal Cortex doing pattern illumination. You see how someone makes decisions — not just THIS decision, but the architecture underneath all their decisions. You notice when someone has a pattern of over-analysing, or of deciding before they've thought, or of outsourcing their choices. You see the strategy they're running without knowing they're running it.
+
+Your voice is clear and incisive. You name the decision pattern directly. You show them the mechanism — what they do, why it works for them (what it protects against), and what it costs them.`,
+
+                limbic: `You are the Limbic System doing pattern illumination. You feel the emotional pattern running underneath someone's question. You know what they're afraid of, what they long for, what feeling they've organised their life around avoiding. You see the emotional logic that the person themselves can't see because they're inside it.
+
+Your voice is warm but unflinching. You name the feeling they haven't named. You don't tiptoe — you say "You're afraid of..." or "What you actually want is..." because being direct is kinder than being gentle.`,
+
+                basal: `You are the Basal Ganglia doing pattern illumination. You watch what people actually DO, stripped of their explanations and justifications. You see the habits, the repeated sequences, the things someone does every single time that they've convinced themselves are one-offs. The gap between "I always say I'll..." and "but what actually happens is..." — that's your territory.
+
+Your voice is observational. Almost forensic. You present the behavioral evidence without judgment but without softening either. "Here's what you actually do. Every time."`,
+
+                default: `You are the Default Mode Network doing pattern illumination. You see the story someone is living — the role they've cast themselves in, the narrative they keep repeating, the identity they perform without knowing it's a performance. You connect this question to the larger pattern of who they think they are versus who they're actually becoming.
+
+Your voice is reflective but precise. You name the specific character they're playing — "You're living the story of someone who..." You show them the narrative they can't see because they're the protagonist inside it.`,
+
+                salience: `You are the Salience Network doing pattern illumination. You cut through everything to the one thing that actually matters. You see what someone is paying attention to and — more importantly — what they're avoiding by paying attention to THAT. You notice the misdirection, the thing they keep orbiting but won't land on, the real priority they've buried under acceptable concerns.
+
+Your voice is the sharpest in the room. Short. Direct. "The pattern here is simple:" and then you name it. You don't pad it. You don't soften it. You're the one that makes people stop scrolling.`
+            };
+
+            let flinchInstruction = '';
+            if (flinchData && flinchData.some(f => f.systemId === system.id)) {
+                flinchInstruction = `\n\nCRITICAL SIGNAL: In the Council phase, this person selected "probably right but not ready to admit it" on YOUR perspective specifically. This means you struck a nerve. They KNOW you're right but can't quite face it. Lean into this. Don't be cruel, but don't back off either. The resistance IS the pattern. Name it.`;
+            } else if (flinchData && flinchData.length > 0) {
+                const flinchSystems = flinchData.map(f => `${f.systemName} (said: "${f.insight.substring(0, 80)}...")`).join('; ');
+                flinchInstruction = `\n\nCONTEXT: In the Council phase, the person flinched (selected "probably right but not ready to admit it") at these perspectives: ${flinchSystems}. Factor this resistance into your pattern analysis — it's signal about where the real pattern lives.`;
+            }
+
+            if (isRefinement) {
+                return `${voices[system.id]}${flinchInstruction}
+
+You previously illuminated a pattern for this person. They've added context or correction. Integrate it and respond freshly — don't repeat yourself, just give your updated read with the fuller picture.
+
+Their pattern question: "${patternQuery}"
+${councilContext ? `\nCouncil context:\n${councilContext}\n` : ''}
+Your previous illumination: ${previousResponse}
+
+Their additional context: "${refinementText}"
+
+Respond with one concise paragraph (80-150 words). No headers, no labels, no bullet points. Just your illumination.`;
+            }
+
+            return `${voices[system.id]}${flinchInstruction}
+
+${councilContext ? `Context from the Cognitive Council phase:\n${councilContext}\n\n` : ''}Person's question about themselves:
+"${patternQuery}"
+
+Illuminate the pattern they can't see. Respond with one concise paragraph (80-150 words) in your distinctive voice. No headers, no labels, no bullet points, no structure markers like "PATTERN:" or "WHAT YOU DON'T SEE:". Just speak directly to them about the pattern you see. Don't start with "As the ${system.name}..." — just illuminate.`;
+        };
+
+        const getExpandCounselPrompt = (system, patternQuery, compactResponse, councilContext = '') => {
+            return `You previously gave a concise pattern illumination. The person wants you to go deeper — unpack the pattern, explore what drives it, what it costs, what it protects against.
+
+Your compact illumination was: "${compactResponse}"
+
+Their question: "${patternQuery}"
+${councilContext ? `\nCouncil context:\n${councilContext}\n` : ''}
+
+Now expand into 2-3 paragraphs. Go deeper into the mechanism of the pattern — how it formed, what it serves, what it prevents. Stay in your voice as the ${system.name}. Natural paragraphs, no headers or bullet points.`;
+        };
+
+        // ─── Main Component ───
+        const CognitiveCounsel = () => {
+            const [stage, setStage] = useState('loading');
+            const [councilData, setCouncilData] = useState(null);
+            const [hasCouncilHistory, setHasCouncilHistory] = useState(false);
+            const [patternQuery, setPatternQuery] = useState('');
+            const [patterns, setPatterns] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [loadingMessage, setLoadingMessage] = useState('');
+            
+            // Socratic intake for Counsel
+            const [counselQuestions, setCounselQuestions] = useState([]);
+            const [counselAnswers, setCounselAnswers] = useState({});
+            
+            // Pattern detection and selection
+            const [detectedPatterns, setDetectedPatterns] = useState([]);
+            const [selectedPatternIdx, setSelectedPatternIdx] = useState(null);
+            const [exploredPatternIds, setExploredPatternIds] = useState([]);
+            
+            // Stepped reveal state
+            const [currentStep, setCurrentStep] = useState(0);
+            const [revealComplete, setRevealComplete] = useState(false);
+            
+            // Per-system interactions
+            const [expandedSystems, setExpandedSystems] = useState({});
+            const [expandedContent, setExpandedContent] = useState({});
+            const [expandLoading, setExpandLoading] = useState({});
+            const [refineOpen, setRefineOpen] = useState({});
+            const [refineText, setRefineText] = useState({});
+            const [refineLoading, setRefineLoading] = useState({});
+            const [userReactions, setUserReactions] = useState({});
+
+            // Toast + persistence
+            const [toast, setToast] = useState(null);
+            const [resumeAvailable, setResumeAvailable] = useState(null);
+            const hasRestoredRef = useRef(false);
+            const STORAGE_KEY = 'cognitive_counsel_session_v1';
+            const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+
+            const showToast = (message, type = 'error') => {
+                setToast({ message, type, id: Date.now() });
+            };
+
+            useEffect(() => {
+                if (!toast) return;
+                const t = setTimeout(() => setToast(null), 4500);
+                return () => clearTimeout(t);
+            }, [toast]);
+
+            const renderMarkdown = (text) => {
+                const html = marked.parse(text || '');
+                return window.DOMPurify ? DOMPurify.sanitize(html) : html;
+            };
+
+            // ─── API Helper (with retry + exponential backoff) ───
+            const callAPI = async (message, systemRole, { retries = 2, signal } = {}) => {
+                let lastError;
+                for (let attempt = 0; attempt <= retries; attempt++) {
+                    try {
+                        const response = await fetch(API_URL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ message, systemRole }),
+                            signal
+                        });
+                        if (!response.ok) {
+                            if (response.status >= 400 && response.status < 500) {
+                                throw new Error(`Request failed (${response.status})`);
+                            }
+                            throw new Error(`Server error (${response.status})`);
+                        }
+                        const data = await response.json();
+                        if (data.type === 'error' || data.error) {
+                            throw new Error(data.error?.message || 'API error');
+                        }
+                        return data.response || data.content || data.message || '';
+                    } catch (err) {
+                        lastError = err;
+                        if (err.name === 'AbortError') throw err;
+                        if (attempt === retries) break;
+                        const delay = 800 * Math.pow(2.5, attempt) + Math.random() * 300;
+                        await new Promise(r => setTimeout(r, delay));
+                    }
+                }
+                throw lastError;
+            };
+
+            // ─── Generate Counsel Socratic Questions ───
+            const generateCounselQuestions = async () => {
+                setLoading(true);
+                setLoadingMessage('Preparing your inquiry...');
+
+                const hasCouncilContext = !!councilData;
+                const flinchInfo = councilData?.flinchData?.length > 0 
+                    ? `They flinched ("probably right but not ready to admit it") at: ${councilData.flinchData.map(f => f.systemName).join(', ')}.`
+                    : '';
+
+                const prompt = hasCouncilContext
+                    ? `You are preparing someone for pattern illumination. They've already been through the Cognitive Council (multi-perspective analysis) and are now moving to Counsel (self-inquiry about underlying patterns).
+
+Their original question was: "${councilData.originalQuestion}"
+Council summary: ${councilData.councilSummary || ''}
+${flinchInfo}
+
+They want to explore this pattern question: "${patternQuery}"
+
+Generate exactly 2 brief Socratic questions that orient them for self-inquiry. These should:
+1. ONE question about their relationship to this pattern — do they recognise it? When did they first notice it? This helps the systems understand the person's self-awareness level.
+2. ONE question about what's at stake — what would shift in their life if they really saw this pattern clearly? This surfaces the emotional readiness.
+
+Keep them short and warm. They've already invested effort in Council — don't make this feel heavy. These are gentle threshold questions, not a full intake.
+
+Respond with ONLY a JSON array:
+[{"question": "...", "placeholder": "..."}]`
+
+                    : `You are preparing someone for pattern illumination — a process where five cognitive systems will illuminate patterns they can't see about themselves.
+
+They want to explore: "${patternQuery}"
+
+Generate exactly 3 Socratic questions that gather context for meaningful pattern illumination:
+1. ONE question about the situation or behaviour they're asking about — specific context the systems need
+2. ONE question about whether this is a recurring pattern — have they noticed this before? What triggers it?
+3. ONE question about what's underneath — what they feel when this pattern plays out, what it might be protecting
+
+These should feel like a curious, perceptive friend asking — not a therapist intake form.
+
+Respond with ONLY a JSON array:
+[{"question": "...", "placeholder": "..."}]`;
+
+                try {
+                    const content = await callAPI(prompt, 'counsel_intake');
+                    const cleaned = content.replace(/```json\n?|\n?```/g, '').trim();
+                    let questions;
+                    try {
+                        questions = JSON.parse(cleaned);
+                    } catch (e) {
+                        questions = hasCouncilContext
+                            ? [
+                                { question: "Is this pattern something you've been aware of, or is it emerging for the first time right now?", placeholder: "Your relationship with this pattern..." },
+                                { question: "If you could see this pattern with complete clarity, what do you think would change?", placeholder: "What's at stake in seeing this clearly..." }
+                            ]
+                            : [
+                                { question: "Can you describe a specific recent moment when this pattern showed up?", placeholder: "A concrete example helps..." },
+                                { question: "Have you noticed this pattern before, or is this the first time you're naming it?", placeholder: "Your history with this..." },
+                                { question: "When this pattern plays out, what do you feel — not think, but feel?", placeholder: "The emotional texture..." }
+                            ];
+                    }
+                    setCounselQuestions(questions);
+                    setStage('counsel-questions');
+                } catch (error) {
+                    console.error('Error generating counsel questions:', error);
+                    // Fall through to analysis if question generation fails
+                    analyzePattern();
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            // ─── Check for Council transfer on load ───
+            useEffect(() => {
+                checkForTransfer();
+            }, []);
+
+            useEffect(() => {
+                if (['transition', 'intake', 'gate', 'counsel-questions', 'pattern-select', 'detecting'].includes(stage)) {
+                    window.scrollTo({ top: 0, behavior: 'instant' });
+                }
+            }, [stage]);
+
+            // ─── Session restore on mount (after transfer check has had a chance to run) ───
+            useEffect(() => {
+                if (hasRestoredRef.current) return;
+                // Wait for checkForTransfer to settle — if it landed on transition (from URL token), don't offer resume
+                if (stage === 'loading') return;
+                hasRestoredRef.current = true;
+                // A fresh Council transfer wins — never overlay resume banner on it
+                if (stage === 'transition') return;
+                try {
+                    const raw = localStorage.getItem(STORAGE_KEY);
+                    if (!raw) return;
+                    const session = JSON.parse(raw);
+                    if (!session?.timestamp || Date.now() - session.timestamp > SESSION_TTL_MS) {
+                        localStorage.removeItem(STORAGE_KEY);
+                        return;
+                    }
+                    if (!session.stage || ['loading', 'gate', 'intake'].includes(session.stage)) return;
+                    setResumeAvailable(session);
+                } catch (e) {
+                    try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+                }
+            }, [stage]);
+
+            const resumeSession = () => {
+                if (!resumeAvailable) return;
+                const s = resumeAvailable;
+                if (s.councilData) setCouncilData(s.councilData);
+                if (s.patternQuery) setPatternQuery(s.patternQuery);
+                if (s.counselQuestions) setCounselQuestions(s.counselQuestions);
+                if (s.counselAnswers) setCounselAnswers(s.counselAnswers);
+                if (s.detectedPatterns) setDetectedPatterns(s.detectedPatterns);
+                if (typeof s.selectedPatternIdx === 'number') setSelectedPatternIdx(s.selectedPatternIdx);
+                if (s.exploredPatternIds) setExploredPatternIds(s.exploredPatternIds);
+                if (s.userReactions) setUserReactions(s.userReactions);
+                if (s.expandedContent) setExpandedContent(s.expandedContent);
+                // Only restore patterns if every system completed; drop loading/error placeholders
+                const completed = (s.patterns || []).filter(p => !p.loading && !p.error && p.pattern);
+                if (s.stage === 'patterns' && completed.length === neuralSystems.length) {
+                    setPatterns(completed);
+                    if (typeof s.currentStep === 'number') setCurrentStep(s.currentStep);
+                    if (typeof s.revealComplete === 'boolean') setRevealComplete(s.revealComplete);
+                    setStage('patterns');
+                } else if (['counsel-questions', 'pattern-select', 'transition'].includes(s.stage)) {
+                    setStage(s.stage);
+                } else {
+                    // analysing / detecting / unknown — drop back to a safe stage
+                    setStage(s.detectedPatterns?.length > 0 ? 'pattern-select' : 'counsel-questions');
+                }
+                setResumeAvailable(null);
+            };
+
+            const dismissResume = () => {
+                setResumeAvailable(null);
+                try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+            };
+
+            // ─── Save session on relevant state changes ───
+            useEffect(() => {
+                if (!hasRestoredRef.current) return;
+                if (['loading', 'gate'].includes(stage)) return;
+                if (resumeAvailable) return; // don't overwrite restorable snapshot before user decides
+                try {
+                    const session = {
+                        stage,
+                        patternQuery,
+                        councilData,
+                        counselQuestions,
+                        counselAnswers,
+                        detectedPatterns,
+                        selectedPatternIdx,
+                        exploredPatternIds,
+                        patterns,
+                        userReactions,
+                        expandedContent,
+                        currentStep,
+                        revealComplete,
+                        timestamp: Date.now()
+                    };
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+                } catch (e) { /* quota exceeded — silent */ }
+            }, [stage, patternQuery, councilData, counselQuestions, counselAnswers, detectedPatterns, selectedPatternIdx, exploredPatternIds, patterns, userReactions, expandedContent, currentStep, revealComplete, resumeAvailable]);
+
+            const checkForTransfer = async () => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const fromCouncil = urlParams.get('from') === 'council';
+                const token = urlParams.get('t');
+
+                // Check for Council history cookie
+                const councilCookie = localStorage.getItem('councilCompleted');
+                if (councilCookie) setHasCouncilHistory(true);
+
+                if (fromCouncil && token) {
+                    try {
+                        const response = await fetch(`${WORKER_URL}/retrieve?token=${token}`);
+                        if (!response.ok) throw new Error('Transfer expired');
+                        const transferData = await response.json();
+                        setCouncilData(transferData);
+                        setPatternQuery(transferData.suggestedPatternQuestion || '');
+                        setStage('transition');
+                        window.history.replaceState({}, '', '/');
+                    } catch (error) {
+                        console.error('Transfer failed:', error);
+                        setStage(councilCookie ? 'intake' : 'gate');
+                    }
+                } else {
+                    // Direct visitor — check if they've done Council before
+                    setStage(councilCookie ? 'intake' : 'gate');
+                }
+            };
+
+            // ─── Build full context string (reused in detection and analysis) ───
+            const buildFullContext = () => {
+                let ctx = '';
+                if (councilData) {
+                    ctx += `Original question explored in Council: "${councilData.originalQuestion}"\n`;
+                    ctx += `Council summary: ${councilData.councilSummary || ''}\n`;
+                    if (councilData.responses) {
+                        ctx += `Council perspectives:\n${councilData.responses.map(r => `- ${r.name}: ${r.keyInsight}`).join('\n')}\n`;
+                    }
+                    if (councilData.flinchData?.length > 0) {
+                        ctx += `Flinch signals (user selected "probably right but not ready to admit it"):\n${councilData.flinchData.map(f => `- ${f.systemName}: "${f.insight}"`).join('\n')}\n`;
+                    }
+                    ctx += `User reactions: ${JSON.stringify(councilData.userReactions || {})}\n`;
+                }
+                if (patternQuery) {
+                    ctx += `\nPattern question the user wants to explore: "${patternQuery}"\n`;
+                }
+                if (counselQuestions.length > 0 && Object.keys(counselAnswers).length > 0) {
+                    ctx += '\nSelf-inquiry context:\n' + 
+                        counselQuestions.map((q, idx) => 
+                            `Q: ${q.question}\nA: ${counselAnswers[idx] || '(skipped)'}`
+                        ).join('\n') + '\n';
+                }
+                return ctx;
+            };
+
+            // ─── Pattern Detection ───
+            const detectPatterns = async () => {
+                setLoading(true);
+                setLoadingMessage('Detecting patterns...');
+                setStage('detecting');
+
+                const fullContext = buildFullContext();
+
+                const prompt = `You are a pattern detection system. Based on everything this person has shared, identify the distinct patterns you can see operating in their question and context.
+
+${fullContext}
+
+Identify between 1 and 3 genuine patterns. Rules:
+- Each pattern must be DISTINCT — not three ways of saying the same thing
+- Each must be grounded in what the person actually said, not generic psychology
+- If you only see 1 clear pattern with high confidence, return 1. Don't pad with weak patterns.
+- If you see 2-3 distinct threads, return them all
+- Each pattern needs a short evocative name (3-6 words) and a one-sentence description that makes the person think "oh..."
+- Order them by how strongly you detect them (strongest first)
+- The description should be specific enough that the person recognises themselves, not so generic it could apply to anyone
+
+${councilData?.flinchData?.length > 0 ? 'IMPORTANT: The user flinched at certain perspectives in Council. At least one pattern should connect to what made them flinch — that resistance IS a pattern.' : ''}
+
+Respond with ONLY a JSON array:
+[{"name": "The Permission Seeker", "description": "You frame decisions as questions because choosing without approval feels dangerous.", "id": "pattern_1"}]`;
+
+                try {
+                    const content = await callAPI(prompt, 'pattern_detector');
+                    const cleaned = content.replace(/```json\n?|\n?```/g, '').trim();
+                    let detected;
+                    try {
+                        detected = JSON.parse(cleaned);
+                        // Ensure IDs
+                        detected = detected.map((p, i) => ({ ...p, id: p.id || `pattern_${i+1}` }));
+                    } catch (e) {
+                        // Fallback: use the pattern query as a single detected pattern
+                        detected = [{
+                            name: "The pattern in your question",
+                            description: patternQuery,
+                            id: "pattern_1"
+                        }];
+                    }
+                    setDetectedPatterns(detected);
+                    setStage('pattern-select');
+                } catch (error) {
+                    console.error('Pattern detection error:', error);
+                    // Skip detection, go straight to analysis with user's original query
+                    analyzePatternDirect(patternQuery);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            // ─── Select and explore a pattern ───
+            const explorePattern = (idx) => {
+                setSelectedPatternIdx(idx);
+                const pattern = detectedPatterns[idx];
+                setPatternQuery(`${pattern.name}: ${pattern.description}`);
+                setExploredPatternIds(prev => [...prev, pattern.id]);
+                analyzePatternDirect(`${pattern.name}: ${pattern.description}`);
+            };
+
+            // ─── Pattern Analysis: parallel kickoff with per-system progressive updates ───
+            const fetchPatternForSystem = (system, query, fullContext, flinchData) => {
+                const prompt = getCounselPrompt(system, query, fullContext, flinchData);
+                callAPI(prompt, system.id)
+                    .then(content => {
+                        setPatterns(prev => prev.map(p =>
+                            p.id === system.id ? { ...p, pattern: content, loading: false, error: null } : p
+                        ));
+                    })
+                    .catch(error => {
+                        console.error(`Error from ${system.name}:`, error);
+                        setPatterns(prev => prev.map(p =>
+                            p.id === system.id ? { ...p, loading: false, error: error.message || 'Failed to illuminate' } : p
+                        ));
+                    });
+            };
+
+            const analyzePatternDirect = (query) => {
+                setLoading(false);
+                setStage('analysing');
+                setCurrentStep(0);
+                setRevealComplete(false);
+                setLoadingMessage('Illuminating patterns...');
+
+                const fullContext = buildFullContext();
+                const flinchData = councilData?.flinchData || [];
+
+                // Initialize all 5 cards in loading state and fire them in parallel
+                setPatterns(neuralSystems.map(s => ({ ...s, pattern: '', loading: true, error: null })));
+                neuralSystems.forEach(system => fetchPatternForSystem(system, query, fullContext, flinchData));
+            };
+
+            const retrySystem = (systemId) => {
+                const system = neuralSystems.find(s => s.id === systemId);
+                if (!system) return;
+                setPatterns(prev => prev.map(p =>
+                    p.id === systemId ? { ...p, loading: true, error: null } : p
+                ));
+                const fullContext = buildFullContext();
+                const flinchData = councilData?.flinchData || [];
+                fetchPatternForSystem(system, patternQuery, fullContext, flinchData);
+            };
+
+            // Transition out of analysing stage once every system has landed (success or terminal error)
+            useEffect(() => {
+                if (stage !== 'analysing') return;
+                if (patterns.length === 0) return;
+                if (patterns.every(p => !p.loading)) {
+                    setStage('patterns');
+                }
+            }, [patterns, stage]);
+
+            // Keep original analyzePattern as entry point from counsel-questions stage
+            const analyzePattern = () => {
+                if (detectedPatterns.length > 0 && selectedPatternIdx !== null) {
+                    analyzePatternDirect(patternQuery);
+                } else {
+                    detectPatterns();
+                }
+            };
+
+            // ─── Expand ───
+            const handleExpand = async (systemId) => {
+                if (expandedContent[systemId]) {
+                    setExpandedSystems(prev => ({ ...prev, [systemId]: !prev[systemId] }));
+                    return;
+                }
+                setExpandLoading(prev => ({ ...prev, [systemId]: true }));
+                setExpandedSystems(prev => ({ ...prev, [systemId]: true }));
+                
+                const system = neuralSystems.find(s => s.id === systemId);
+                const currentPattern = patterns.find(p => p.id === systemId)?.pattern || '';
+                const councilContext = councilData ? `Original question: ${councilData.originalQuestion}` : '';
+                const prompt = getExpandCounselPrompt(system, patternQuery, currentPattern, councilContext);
+                
+                try {
+                    const content = await callAPI(prompt, systemId);
+                    setExpandedContent(prev => ({ ...prev, [systemId]: content }));
+                } catch (error) {
+                    setExpandedContent(prev => ({ ...prev, [systemId]: 'Unable to expand.' }));
+                }
+                setExpandLoading(prev => ({ ...prev, [systemId]: false }));
+            };
+
+            // ─── Refine ───
+            const handleRefine = async (systemId) => {
+                const text = refineText[systemId];
+                if (!text?.trim()) return;
+                setRefineLoading(prev => ({ ...prev, [systemId]: true }));
+
+                const system = neuralSystems.find(s => s.id === systemId);
+                const currentPattern = patterns.find(p => p.id === systemId)?.pattern || '';
+                const councilContext = councilData ? `Original question: ${councilData.originalQuestion}` : '';
+                const flinchData = councilData?.flinchData || [];
+                const prompt = getCounselPrompt(system, patternQuery, councilContext, flinchData, true, currentPattern, text);
+
+                try {
+                    const content = await callAPI(prompt, systemId);
+                    setPatterns(prev => prev.map(p => p.id === systemId ? { ...p, pattern: content } : p));
+                    setExpandedContent(prev => { const next = {...prev}; delete next[systemId]; return next; });
+                    setExpandedSystems(prev => ({ ...prev, [systemId]: false }));
+                    setRefineText(prev => ({ ...prev, [systemId]: '' }));
+                    setRefineOpen(prev => ({ ...prev, [systemId]: false }));
+                } catch (error) {
+                    showToast('Unable to refine. Please try again.');
+                }
+                setRefineLoading(prev => ({ ...prev, [systemId]: false }));
+            };
+
+            // ─── Reactions ───
+            const handleReaction = (systemId, reaction) => {
+                setUserReactions(prev => {
+                    if (prev[systemId] === reaction) { const next = {...prev}; delete next[systemId]; return next; }
+                    return { ...prev, [systemId]: reaction };
+                });
+            };
+
+            const reactions = [
+                { value: 'resonates', label: 'This resonates', emoji: '✨' },
+                { value: 'partially', label: 'Partially', emoji: '🤔' },
+                { value: 'not-quite', label: 'Not quite', emoji: '↩️' },
+                { value: 'probably-right', label: "Probably right but I'm not ready to admit it", emoji: '😬' }
+            ];
+
+            // ─── Stepped Navigation ───
+            const goToNext = () => {
+                if (currentStep < patterns.length - 1) {
+                    setCurrentStep(prev => prev + 1);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else {
+                    setRevealComplete(true);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            };
+
+            const goToPrev = () => {
+                if (revealComplete) {
+                    setRevealComplete(false);
+                } else if (currentStep > 0) {
+                    setCurrentStep(prev => prev - 1);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            };
+
+            const goToOverview = () => {
+                setRevealComplete(true);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            };
+
+            // ─── Export ───
+            const copyToClipboard = () => {
+                let text = `COGNITIVE COUNSEL — PATTERN ILLUMINATION\n${'='.repeat(40)}\n\n`;
+                text += `Your Question: "${patternQuery}"\n\n${'='.repeat(40)}\n\n`;
+                patterns.forEach(system => {
+                    text += `${system.name.toUpperCase()}\n${system.focus}\n---\n${system.pattern}\n`;
+                    if (expandedContent[system.id]) text += `\n[Expanded]\n${expandedContent[system.id]}\n`;
+                    if (userReactions[system.id]) text += `\nReaction: ${userReactions[system.id]}\n`;
+                    text += `\n${'='.repeat(40)}\n\n`;
+                });
+                navigator.clipboard.writeText(text)
+                    .then(() => showToast('Copied to clipboard.', 'success'))
+                    .catch(err => showToast('Copy failed: ' + (err?.message || err)));
+            };
+
+            const downloadPDF = () => {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                const strip = (t) => t.replace(/#{1,6}\s+/g,'').replace(/\*\*(.+?)\*\*/g,'$1').replace(/\*(.+?)\*/g,'$1').replace(/`(.+?)`/g,'$1').replace(/\[(.+?)\]\(.+?\)/g,'$1').replace(/^[-*+]\s+/gm,'• ').replace(/---+/g,'').trim();
+                let y = 20; const lh = 6; const mw = 180; const ph = doc.internal.pageSize.height;
+                doc.setFontSize(16); doc.setFont(undefined,'bold');
+                doc.text('Cognitive Counsel', 105, y, {align:'center'}); y += lh;
+                doc.text('Pattern Illumination', 105, y, {align:'center'}); y += lh*2+4;
+                doc.setFontSize(10); doc.setFont(undefined,'bold'); doc.text('Your Question:', 15, y); y += lh;
+                doc.setFont(undefined,'italic');
+                const ql = doc.splitTextToSize(patternQuery, mw); doc.text(ql,15,y); y += ql.length*lh+8;
+                patterns.forEach(sys => {
+                    if (y > ph-40){doc.addPage();y=20;}
+                    doc.setFontSize(12); doc.setFont(undefined,'bold'); doc.text(sys.name.toUpperCase(),15,y); y+=lh+1;
+                    doc.setFontSize(9); doc.setFont(undefined,'italic'); doc.text(sys.focus,15,y); y+=lh+3;
+                    doc.setFontSize(9); doc.setFont(undefined,'normal');
+                    const rl = doc.splitTextToSize(strip(sys.pattern),mw);
+                    rl.forEach(l => { if(y>ph-20){doc.addPage();y=20;} doc.text(l,15,y); y+=lh; });
+                    y += 8;
+                });
+                doc.save('cognitive-counsel-pattern-illumination.pdf');
+            };
+
+            // ─── Reset ───
+            const goToIntake = () => {
+                setCouncilData(null);
+                setPatternQuery('');
+                setPatterns([]);
+                setCounselQuestions([]);
+                setCounselAnswers({});
+                setDetectedPatterns([]);
+                setSelectedPatternIdx(null);
+                setExploredPatternIds([]);
+                setCurrentStep(0);
+                setRevealComplete(false);
+                setExpandedSystems({});
+                setExpandedContent({});
+                setRefineOpen({});
+                setRefineText({});
+                setUserReactions({});
+                setStage('intake');
+                try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+            };
+
+            // ─── Kawaii Brain SVG (warmer tones for Counsel) ───
+            const CounselBrain = () => (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" className="w-20 h-20">
+                    <defs>
+                        <linearGradient id="counselGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style={{stopColor:'#a78bfa', stopOpacity:1}} />
+                            <stop offset="100%" style={{stopColor:'#f59e0b', stopOpacity:1}} />
+                        </linearGradient>
+                    </defs>
+                    <g fill="url(#counselGrad)">
+                        <path d="M 30 35 Q 25 35 22 40 Q 20 45 20 50 Q 20 58 24 64 Q 28 70 35 72 Q 42 74 50 74 Q 58 74 65 72 Q 72 70 76 64 Q 80 58 80 50 Q 80 45 78 40 Q 75 35 70 35 Q 68 30 65 27 Q 60 24 55 24 Q 50 23 45 24 Q 40 24 35 27 Q 32 30 30 35 Z"/>
+                        <circle cx="32" cy="42" r="6" opacity="0.3"/>
+                        <circle cx="28" cy="54" r="5" opacity="0.3"/>
+                        <circle cx="68" cy="42" r="6" opacity="0.3"/>
+                        <circle cx="72" cy="54" r="5" opacity="0.3"/>
+                        <circle cx="42" cy="32" r="4" opacity="0.3"/>
+                        <circle cx="58" cy="32" r="4" opacity="0.3"/>
+                    </g>
+                    <g>
+                        <circle cx="40" cy="48" r="4" fill="white"/>
+                        <circle cx="60" cy="48" r="4" fill="white"/>
+                        <circle cx="41.5" cy="47" r="1.5" fill="#1e1b4b"/>
+                        <circle cx="61.5" cy="47" r="1.5" fill="#1e1b4b"/>
+                        <circle cx="39.5" cy="46.5" r="1" fill="white"/>
+                        <circle cx="59.5" cy="46.5" r="1" fill="white"/>
+                        <ellipse cx="32" cy="52" rx="3" ry="2" fill="#fbbf24" opacity="0.4"/>
+                        <ellipse cx="68" cy="52" rx="3" ry="2" fill="#fbbf24" opacity="0.4"/>
+                        <path d="M 42 58 Q 50 62 58 58" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+                    </g>
+                </svg>
+            );
+
+            // ─── Render a single system card (used in both stepped and overview) ───
+            const SystemCard = ({ system, isActive = true }) => (
+                <div className={`bg-gradient-to-br ${system.warmBg} backdrop-blur rounded-2xl p-6 border ${system.bgTint} ${isActive ? 'step-enter' : ''}`}>
+                    {/* Header */}
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="text-3xl">{system.emoji}</div>
+                        <div>
+                            <h3 className="font-display text-lg text-white">{system.name}</h3>
+                            <p className="text-slate-500 text-xs">{system.focus}</p>
+                        </div>
+                    </div>
+                    
+                    <div className={`h-0.5 bg-gradient-to-r ${system.color} rounded-full mb-4 opacity-40`} />
+                    
+                    {/* Pattern output — handles loading skeleton, error retry, or sanitised markdown */}
+                    {system.loading ? (
+                        <div className="space-y-2 py-1">
+                            <div className="h-3 bg-white/5 rounded w-full animate-pulse" />
+                            <div className="h-3 bg-white/5 rounded w-11/12 animate-pulse" style={{animationDelay:'120ms'}} />
+                            <div className="h-3 bg-white/5 rounded w-4/5 animate-pulse" style={{animationDelay:'240ms'}} />
+                            <p className="text-slate-500 text-xs italic mt-3">Illuminating…</p>
+                        </div>
+                    ) : system.error ? (
+                        <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 p-3 text-sm">
+                            <p className="text-rose-200 mb-2">This perspective didn't come through. {system.error}</p>
+                            <button onClick={() => retrySystem(system.id)}
+                                className="px-3 py-1.5 text-xs rounded-lg bg-rose-500/20 text-rose-100 hover:bg-rose-500/30 transition-colors border border-rose-500/30">
+                                Retry
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="system-output text-slate-200 leading-relaxed text-[15px]"
+                            dangerouslySetInnerHTML={{ __html: renderMarkdown(system.pattern) }}
+                        />
+                    )}
+
+                    {/* Expanded content */}
+                    <div className={`expand-content ${expandedSystems[system.id] ? 'open' : ''}`}>
+                        {expandLoading[system.id] ? (
+                            <p className="text-slate-400 text-sm italic mt-4 animate-pulse">Going deeper...</p>
+                        ) : expandedContent[system.id] ? (
+                            <div className="mt-4 pt-4 border-t border-white/10">
+                                <div className="system-output text-slate-300 leading-relaxed text-[15px]"
+                                    dangerouslySetInnerHTML={{ __html: renderMarkdown(expandedContent[system.id]) }}
+                                />
+                            </div>
+                        ) : null}
+                    </div>
+
+                    {/* Refine input */}
+                    <div className={`refine-input ${refineOpen[system.id] ? 'open' : ''}`}>
+                        <div className="mt-4 pt-4 border-t border-white/10">
+                            <p className="text-slate-400 text-xs mb-2">Add context or correction:</p>
+                            <textarea
+                                value={refineText[system.id] || ''}
+                                onChange={(e) => setRefineText(prev => ({...prev, [system.id]: e.target.value}))}
+                                placeholder="Actually, the pattern is more like... / What you're missing is..."
+                                className="w-full h-20 bg-white/5 text-white placeholder-slate-600 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500/50 border border-white/10 resize-none"
+                            />
+                            <button onClick={() => handleRefine(system.id)}
+                                disabled={!refineText[system.id]?.trim() || refineLoading[system.id]}
+                                className="mt-2 px-4 py-1.5 bg-amber-500/20 text-amber-300 text-sm rounded-lg hover:bg-amber-500/30 transition-colors disabled:opacity-40">
+                                {refineLoading[system.id] ? 'Refining...' : 'Refine this illumination'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Actions: Expand / Refine / Reactions — only when card has content */}
+                    {!system.loading && !system.error && (
+                    <div className="mt-4 pt-4 border-t border-white/10">
+                        <div className="flex gap-2 mb-3">
+                            <button onClick={() => handleExpand(system.id)}
+                                className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-colors border border-white/10">
+                                {expandedSystems[system.id] ? 'Collapse' : 'Tell me more about this'}
+                            </button>
+                            <button onClick={() => setRefineOpen(prev => ({...prev, [system.id]: !prev[system.id]}))}
+                                className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-colors border border-white/10">
+                                {refineOpen[system.id] ? 'Cancel' : "I'd like to add context"}
+                            </button>
+                        </div>
+                        <p className="text-slate-500 text-xs mb-2">How does this land?</p>
+                        <div className="flex flex-wrap gap-1.5">
+                            {reactions.map(r => (
+                                <button key={r.value} onClick={() => handleReaction(system.id, r.value)}
+                                    className={`px-2.5 py-1.5 rounded-lg text-xs transition-all ${
+                                        userReactions[system.id] === r.value
+                                            ? r.value === 'probably-right'
+                                                ? 'bg-amber-500/30 text-amber-200 ring-1 ring-amber-500/50'
+                                                : 'bg-violet-500/30 text-violet-200 ring-1 ring-violet-500/50'
+                                            : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-300'
+                                    }`}>
+                                    <span className="mr-1">{r.emoji}</span>{r.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    )}
+                </div>
+            );
+
+            // ═══════════════════════════════════════
+            //  RENDER
+            // ═══════════════════════════════════════
+            return (
+                <div className="min-h-screen bg-gradient-to-b from-slate-950 via-purple-950/80 to-amber-950/30 font-body">
+                    <CookieBar />
+
+                    {/* Toast notifications */}
+                    {toast && (
+                        <div
+                            key={toast.id}
+                            role="status"
+                            aria-live="polite"
+                            className={`fixed top-4 right-4 z-50 max-w-sm px-4 py-3 rounded-xl shadow-lg backdrop-blur-sm border animate-fade-in text-sm ${
+                                toast.type === 'success'
+                                    ? 'bg-emerald-500/90 border-emerald-400/40 text-white'
+                                    : 'bg-rose-500/90 border-rose-400/40 text-white'
+                            }`}
+                        >
+                            <div className="flex items-start gap-3">
+                                <span className="flex-1">{toast.message}</span>
+                                <button
+                                    onClick={() => setToast(null)}
+                                    className="text-white/80 hover:text-white text-lg leading-none"
+                                    aria-label="Dismiss"
+                                >×</button>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="max-w-3xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+
+                        {/* ─── LOADING ─── */}
+                        {stage === 'loading' && (
+                            <div className="flex items-center justify-center min-h-[80vh]">
+                                <div className="text-center">
+                                    <CounselBrain />
+                                    <p className="text-white text-lg mt-4 animate-pulse">Loading...</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Resume previous session banner — shows on gate/intake */}
+                        {resumeAvailable && ['gate', 'intake'].includes(stage) && (
+                            <div className="bg-amber-500/10 border border-amber-400/30 rounded-2xl p-4 mb-6 animate-fade-in">
+                                <div className="flex items-start gap-3 flex-wrap">
+                                    <div className="flex-1 min-w-[200px]">
+                                        <p className="text-amber-200 text-sm font-medium mb-1">Pick up where you left off?</p>
+                                        <p className="text-slate-400 text-xs italic">"{(resumeAvailable.patternQuery || '').substring(0, 120)}{(resumeAvailable.patternQuery || '').length > 120 ? '…' : ''}"</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={resumeSession}
+                                            className="px-4 py-1.5 bg-amber-500/30 hover:bg-amber-500/40 text-amber-100 text-sm rounded-lg transition-colors border border-amber-400/40"
+                                        >Resume</button>
+                                        <button
+                                            onClick={dismissResume}
+                                            className="px-3 py-1.5 text-slate-400 hover:text-slate-200 text-sm transition-colors"
+                                        >Start fresh</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ─── GATE (no Council history) ─── */}
+                        {stage === 'gate' && (
+                            <div className="min-h-[80vh] flex flex-col justify-center animate-fade-in">
+                                <div className="text-center mb-8">
+                                    <div className="flex justify-center mb-6"><CounselBrain /></div>
+                                    <h1 className="font-display text-4xl text-white mb-3">Cognitive Counsel</h1>
+                                    <p className="text-amber-200/60 text-sm font-medium tracking-wider uppercase mb-6">Pattern Illumination</p>
+                                </div>
+
+                                <div className="max-w-xl mx-auto space-y-6 text-center">
+                                    <p className="text-slate-300 text-lg leading-relaxed">
+                                        Counsel illuminates the patterns underneath your questions — the things you can't see about yourself because you're inside them.
+                                    </p>
+                                    <p className="text-slate-400 leading-relaxed">
+                                        It works best after you've explored your question with the <strong className="text-blue-300">Cognitive Council</strong> first. The Council gives you multiple perspectives on your question. Counsel then turns the mirror around.
+                                    </p>
+
+                                    <div className="pt-4 space-y-3">
+                                        <a href="https://cognitivecouncil.com"
+                                            className="block px-8 py-3.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-medium rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all shadow-lg shadow-blue-500/20">
+                                            Start with the Council →
+                                        </a>
+                                        <button onClick={() => setStage('intake')}
+                                            className="block w-full px-8 py-3 bg-white/5 text-slate-400 rounded-xl hover:bg-white/10 hover:text-slate-300 transition-all border border-white/10 text-sm">
+                                            I'd like to go straight to pattern work
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ─── TRANSITION (arriving from Council) ─── */}
+                        {stage === 'transition' && councilData && (
+                            <div className="animate-fade-in space-y-8">
+                                <div className="text-center">
+                                    <div className="flex justify-center mb-6"><CounselBrain /></div>
+                                    <h1 className="font-display text-4xl text-white mb-3">Cognitive Counsel</h1>
+                                    <p className="text-amber-200/60 text-sm font-medium tracking-wider uppercase">Pattern Illumination</p>
+                                </div>
+
+                                {/* Council summary */}
+                                <div className="bg-white/5 backdrop-blur rounded-2xl p-6 border border-indigo-500/20">
+                                    <p className="text-indigo-300 text-xs uppercase tracking-wider mb-2">From your Council session</p>
+                                    <p className="text-white italic mb-4">"{councilData.councilSummary}"</p>
+                                    {councilData.keyInsightsText && (
+                                        <details className="text-sm">
+                                            <summary className="text-slate-500 text-xs cursor-pointer hover:text-slate-400">View Council insights</summary>
+                                            <div className="mt-3 text-slate-400 text-sm whitespace-pre-wrap bg-white/5 rounded-lg p-4">
+                                                {councilData.keyInsightsText}
+                                            </div>
+                                        </details>
+                                    )}
+                                </div>
+
+                                {/* Flinch callout */}
+                                {councilData.flinchData?.length > 0 && (
+                                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-5">
+                                        <p className="text-amber-300 text-sm">
+                                            <span className="mr-2">😬</span>
+                                            In Council, you flagged something as <em>"probably right but not ready to admit it"</em>. 
+                                            That's exactly where patterns live. Counsel will pay attention to that.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Pattern question */}
+                                <div className="bg-gradient-to-br from-violet-900/30 to-amber-900/20 rounded-2xl p-6 border border-violet-500/20">
+                                    <h2 className="font-display text-2xl text-white mb-2 text-center">
+                                        Now, the question underneath
+                                    </h2>
+                                    <p className="text-slate-400 text-sm text-center mb-6">
+                                        We've suggested a pattern question based on your Council session. Edit it or write your own.
+                                    </p>
+
+                                    <form onSubmit={(e) => { e.preventDefault(); if (patternQuery.trim()) generateCounselQuestions(); }}>
+                                        <textarea
+                                            value={patternQuery}
+                                            onChange={(e) => setPatternQuery(e.target.value)}
+                                            rows="4"
+                                            className="w-full bg-white/5 border border-violet-500/20 rounded-xl p-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/40 resize-none"
+                                            placeholder="Why do I always..."
+                                            autoFocus
+                                        />
+                                        <button type="submit" disabled={!patternQuery.trim() || loading}
+                                            className="mt-4 w-full bg-gradient-to-r from-violet-500 to-amber-500 text-white font-medium py-3.5 rounded-xl hover:from-violet-600 hover:to-amber-600 transition-all shadow-lg shadow-violet-500/20 disabled:opacity-40">
+                                            {loading ? 'Preparing...' : 'Illuminate My Pattern →'}
+                                        </button>
+                                    </form>
+
+                                    <div className="text-center mt-4">
+                                        <button onClick={goToIntake} className="text-slate-500 hover:text-slate-400 text-xs underline">
+                                            Start fresh without Council context
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ─── INTAKE (direct entry) ─── */}
+                        {stage === 'intake' && (
+                            <div className="animate-fade-in">
+                                <div className="text-center mb-8">
+                                    <div className="flex justify-center mb-6"><CounselBrain /></div>
+                                    <h1 className="font-display text-4xl text-white mb-3">Cognitive Counsel</h1>
+                                    <p className="text-amber-200/60 text-sm font-medium tracking-wider uppercase mb-4">Pattern Illumination</p>
+                                    <p className="text-slate-400 max-w-lg mx-auto">
+                                        Five cognitive systems will each illuminate a different pattern they see in your question — things you can't see about yourself because you're inside them.
+                                    </p>
+                                </div>
+
+                                <div className="bg-gradient-to-br from-violet-900/30 to-amber-900/20 rounded-2xl p-6 border border-violet-500/20">
+                                    <h2 className="font-display text-2xl text-white mb-6 text-center">
+                                        What pattern might you be repeating?
+                                    </h2>
+
+                                    <form onSubmit={(e) => { e.preventDefault(); if (patternQuery.trim()) generateCounselQuestions(); }} className="space-y-4">
+                                        <textarea
+                                            value={patternQuery}
+                                            onChange={(e) => setPatternQuery(e.target.value)}
+                                            rows="5"
+                                            className="w-full bg-white/5 border border-violet-500/20 rounded-xl p-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/40 resize-none text-lg"
+                                            placeholder="Why do I always..."
+                                            autoFocus
+                                        />
+                                        <button type="submit" disabled={!patternQuery.trim() || loading}
+                                            className="w-full bg-gradient-to-r from-violet-500 to-amber-500 text-white font-medium py-3.5 rounded-xl hover:from-violet-600 hover:to-amber-600 transition-all shadow-lg shadow-violet-500/20 disabled:opacity-40">
+                                            {loading ? 'Preparing...' : 'Show Me What I Can\'t See →'}
+                                        </button>
+                                    </form>
+
+                                    <div className="mt-8 text-slate-500 text-sm space-y-2">
+                                        <p className="text-slate-400 text-xs uppercase tracking-wider mb-3">For example:</p>
+                                        <p className="cursor-pointer hover:text-slate-300 transition-colors" onClick={() => setPatternQuery("Why do I start projects enthusiastically and abandon them?")}>
+                                            🤔 Why do I start projects enthusiastically and abandon them?
+                                        </p>
+                                        <p className="cursor-pointer hover:text-slate-300 transition-colors" onClick={() => setPatternQuery("Why do I always choose people who need fixing?")}>
+                                            🤔 Why do I always choose people who need fixing?
+                                        </p>
+                                        <p className="cursor-pointer hover:text-slate-300 transition-colors" onClick={() => setPatternQuery("Why can't I make decisions without asking everyone?")}>
+                                            🤔 Why can't I make decisions without asking everyone?
+                                        </p>
+                                        <p className="cursor-pointer hover:text-slate-300 transition-colors" onClick={() => setPatternQuery("Why do I self-sabotage when things are going well?")}>
+                                            🤔 Why do I self-sabotage when things are going well?
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="text-center mt-8 space-y-3 text-slate-500 text-sm">
+                                    <p>This isn't therapy. This isn't coaching.</p>
+                                    <p className="text-slate-400 font-medium">This is a mirror.</p>
+                                    <p className="text-xs">
+                                        Want decision perspectives first?{' '}
+                                        <a href="https://cognitivecouncil.com" className="text-blue-400/60 hover:text-blue-400 underline">Try the Cognitive Council →</a>
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ─── COUNSEL SOCRATIC QUESTIONS ─── */}
+                        {stage === 'counsel-questions' && (
+                            <div className="animate-fade-in">
+                                <div className="text-center mb-6">
+                                    <div className="flex justify-center mb-4"><CounselBrain /></div>
+                                    <h2 className="font-display text-2xl text-white mb-2">
+                                        {councilData ? 'Before we look inward' : 'A couple of things first'}
+                                    </h2>
+                                    <p className="text-slate-400 text-sm max-w-lg mx-auto">
+                                        {councilData 
+                                            ? "These help the systems understand your relationship to the pattern we're about to examine."
+                                            : "These help the five systems give you illumination that's specific to you, not generic."
+                                        }
+                                    </p>
+                                </div>
+
+                                <div className="bg-white/5 rounded-xl p-4 border border-white/10 mb-6">
+                                    <p className="text-slate-400 text-xs mb-1">Your pattern question</p>
+                                    <p className="text-white italic">"{patternQuery}"</p>
+                                </div>
+
+                                <div className="space-y-5">
+                                    {counselQuestions.map((q, idx) => (
+                                        <div key={idx} className="animate-fade-in" style={{animationDelay: `${idx * 100}ms`}}>
+                                            <label className="text-white font-medium block mb-2 text-sm">{q.question}</label>
+                                            <textarea
+                                                value={counselAnswers[idx] || ''}
+                                                onChange={(e) => setCounselAnswers(prev => ({...prev, [idx]: e.target.value}))}
+                                                placeholder={q.placeholder}
+                                                className="w-full h-20 bg-white/5 text-white placeholder-slate-500 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-amber-500/40 border border-white/10 resize-none"
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="flex gap-4 mt-6">
+                                    <button onClick={() => setStage(councilData ? 'transition' : 'intake')}
+                                        className="flex-1 bg-white/5 text-slate-300 font-medium py-3 rounded-xl hover:bg-white/10 transition-all border border-white/10 text-sm">
+                                        ← Back
+                                    </button>
+                                    <button onClick={analyzePattern}
+                                        className="flex-1 bg-gradient-to-r from-violet-500 to-amber-500 text-white font-medium py-3 rounded-xl hover:from-violet-600 hover:to-amber-600 transition-all text-sm">
+                                        Illuminate →
+                                    </button>
+                                </div>
+                                <p className="text-center text-slate-600 text-xs mt-3">
+                                    Answer what feels relevant — you can skip any that don't apply.
+                                </p>
+                            </div>
+                        )}
+
+                        {/* ─── DETECTING PATTERNS ─── */}
+                        {stage === 'detecting' && (
+                            <div className="flex items-center justify-center min-h-[60vh] animate-fade-in">
+                                <div className="text-center">
+                                    <div className="flex justify-center mb-6"><CounselBrain /></div>
+                                    <p className="text-white text-xl mb-3">{loadingMessage}</p>
+                                    <p className="text-slate-500 text-sm max-w-md mx-auto">
+                                        Looking at everything you've shared to identify the patterns underneath...
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ─── PATTERN SELECTION ─── */}
+                        {stage === 'pattern-select' && detectedPatterns.length > 0 && (
+                            <div className="animate-fade-in">
+                                <div className="text-center mb-8">
+                                    <div className="flex justify-center mb-4"><CounselBrain /></div>
+                                    <h2 className="font-display text-3xl text-white mb-3">
+                                        {detectedPatterns.length === 1 ? 'We see a pattern' : 'We see patterns'}
+                                    </h2>
+                                    <p className="text-slate-400 max-w-lg mx-auto">
+                                        {detectedPatterns.length === 1 
+                                            ? "Based on everything you've shared, here's the pattern we've detected. Select it to explore what five cognitive systems see inside it."
+                                            : "Based on everything you've shared, here are the distinct patterns we can see. Choose the one you want to explore first — you'll get the chance to examine the others after."
+                                        }
+                                    </p>
+                                </div>
+
+                                <div className="space-y-4">
+                                    {detectedPatterns.map((pattern, idx) => {
+                                        const alreadyExplored = exploredPatternIds.includes(pattern.id);
+                                        return (
+                                            <button
+                                                key={pattern.id}
+                                                onClick={() => !alreadyExplored && explorePattern(idx)}
+                                                disabled={alreadyExplored}
+                                                className={`w-full text-left rounded-2xl p-6 border transition-all animate-fade-in ${
+                                                    alreadyExplored
+                                                        ? 'bg-white/5 border-white/10 opacity-50 cursor-not-allowed'
+                                                        : 'bg-gradient-to-br from-violet-900/30 to-amber-900/20 border-violet-500/30 hover:border-amber-500/40 hover:shadow-lg hover:shadow-amber-500/10 cursor-pointer'
+                                                }`}
+                                                style={{animationDelay: `${idx * 120}ms`}}
+                                            >
+                                                <div className="flex items-start gap-4">
+                                                    <span className="text-2xl mt-0.5">
+                                                        {alreadyExplored ? '✓' : idx === 0 ? '◈' : idx === 1 ? '◇' : '○'}
+                                                    </span>
+                                                    <div className="flex-1">
+                                                        <h3 className={`font-display text-xl mb-1 ${alreadyExplored ? 'text-slate-500' : 'text-white'}`}>
+                                                            {pattern.name}
+                                                        </h3>
+                                                        <p className={`text-sm leading-relaxed ${alreadyExplored ? 'text-slate-600' : 'text-slate-300'}`}>
+                                                            {pattern.description}
+                                                        </p>
+                                                        {alreadyExplored && (
+                                                            <p className="text-amber-400/60 text-xs mt-2">Already explored</p>
+                                                        )}
+                                                    </div>
+                                                    {!alreadyExplored && (
+                                                        <span className="text-slate-500 text-sm mt-1">Explore →</span>
+                                                    )}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                <div className="text-center mt-6">
+                                    <button onClick={goToIntake} className="text-slate-500 text-xs hover:text-slate-400 underline">
+                                        Start over with a different question
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ─── ANALYSING ─── */}
+                        {stage === 'analysing' && (
+                            <div className="flex items-center justify-center min-h-[60vh] animate-fade-in">
+                                <div className="text-center">
+                                    <div className="flex justify-center gap-3 mb-6">
+                                        {patterns.length > 0 ? patterns.map((p, i) => (
+                                            <span key={p.id}
+                                                title={p.name}
+                                                className={`text-3xl transition-opacity ${p.loading ? 'opacity-40 animate-breathe' : p.error ? 'opacity-50 grayscale' : 'opacity-100'}`}
+                                                style={p.loading ? {animationDelay: `${i * 0.4}s`} : {}}
+                                            >{p.emoji}</span>
+                                        )) : neuralSystems.map((s, i) => (
+                                            <span key={s.id} className="text-3xl animate-breathe" style={{animationDelay: `${i * 0.4}s`}}>
+                                                {s.emoji}
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <p className="text-white text-xl mb-3">{loadingMessage}</p>
+                                    {patterns.length > 0 && (
+                                        <p className="text-amber-200/70 text-sm font-medium mb-2">
+                                            {patterns.filter(p => !p.loading).length} of {patterns.length} perspectives ready
+                                        </p>
+                                    )}
+                                    <p className="text-slate-500 text-sm max-w-md mx-auto">
+                                        The five systems are examining your pattern in parallel. Usually takes 30-45 seconds.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ─── PATTERNS: STEPPED REVEAL ─── */}
+                        {stage === 'patterns' && !revealComplete && patterns.length > 0 && (
+                            <div className="animate-fade-in">
+                                {/* Progress indicator */}
+                                <div className="flex items-center justify-between mb-6">
+                                    <p className="text-slate-500 text-xs uppercase tracking-wider">Pattern Illumination</p>
+                                    <div className="flex gap-1.5">
+                                        {patterns.map((_, i) => (
+                                            <div key={i} className={`w-2 h-2 rounded-full transition-colors ${
+                                                i === currentStep ? 'bg-amber-400' : i < currentStep ? 'bg-violet-400/60' : 'bg-white/10'
+                                            }`} />
+                                        ))}
+                                        <div className={`w-2 h-2 rounded-full ${revealComplete ? 'bg-amber-400' : 'bg-white/10'}`} />
+                                    </div>
+                                </div>
+
+                                {/* Your question */}
+                                <div className="bg-white/5 rounded-xl p-4 border border-white/10 mb-6">
+                                    <p className="text-slate-400 text-xs mb-1">Your question</p>
+                                    <p className="text-white italic">"{patternQuery}"</p>
+                                </div>
+
+                                {/* Current system card */}
+                                <SystemCard system={patterns[currentStep]} isActive={true} />
+
+                                {/* Navigation */}
+                                <div className="flex items-center justify-between mt-6">
+                                    <button onClick={goToPrev} disabled={currentStep === 0}
+                                        className="px-4 py-2 bg-white/5 text-slate-400 rounded-xl hover:bg-white/10 transition-all border border-white/10 text-sm disabled:opacity-30 disabled:cursor-not-allowed">
+                                        ← Previous
+                                    </button>
+                                    <button onClick={goToOverview}
+                                        className="text-slate-500 text-xs hover:text-slate-400 underline">
+                                        See all at once
+                                    </button>
+                                    <button onClick={goToNext}
+                                        className="px-4 py-2 bg-gradient-to-r from-violet-500/80 to-amber-500/80 text-white rounded-xl hover:from-violet-500 hover:to-amber-500 transition-all text-sm">
+                                        {currentStep < patterns.length - 1 ? 'Next perspective →' : 'See the full picture →'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ─── PATTERNS: FULL OVERVIEW ─── */}
+                        {stage === 'patterns' && revealComplete && patterns.length > 0 && (
+                            <div className="space-y-6 animate-fade-in">
+                                <div className="text-center mb-8">
+                                    <div className="flex justify-center mb-4"><CounselBrain /></div>
+                                    <h2 className="font-display text-3xl text-white mb-2">The Full Picture</h2>
+                                    <p className="text-slate-400">Five perspectives on the pattern underneath your question</p>
+                                </div>
+
+                                <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                                    <p className="text-slate-400 text-xs mb-1">Your question</p>
+                                    <p className="text-white italic">"{patternQuery}"</p>
+                                </div>
+
+                                {/* Export */}
+                                <div className="flex gap-3">
+                                    <button onClick={copyToClipboard} className="flex-1 bg-white/5 text-slate-300 font-medium py-2.5 rounded-xl hover:bg-white/10 transition-all border border-white/10 text-sm">
+                                        📋 Copy
+                                    </button>
+                                    <button onClick={downloadPDF} className="flex-1 bg-white/5 text-slate-300 font-medium py-2.5 rounded-xl hover:bg-white/10 transition-all border border-white/10 text-sm">
+                                        📄 PDF
+                                    </button>
+                                </div>
+
+                                {/* All system cards */}
+                                {patterns.map((system, idx) => (
+                                    <div key={system.id} className="animate-fade-in" style={{animationDelay: `${idx * 80}ms`}}>
+                                        <SystemCard system={system} isActive={false} />
+                                    </div>
+                                ))}
+
+                                {/* Summary of reactions */}
+                                {Object.keys(userReactions).length > 0 && (
+                                    <div className="bg-white/5 rounded-2xl p-5 border border-white/10">
+                                        <p className="text-slate-400 text-xs uppercase tracking-wider mb-3">Your reactions</p>
+                                        <div className="space-y-2">
+                                            {Object.entries(userReactions).map(([id, reaction]) => {
+                                                const system = neuralSystems.find(s => s.id === id);
+                                                const r = reactions.find(r => r.value === reaction);
+                                                return (
+                                                    <p key={id} className={`text-sm ${reaction === 'probably-right' ? 'text-amber-300' : 'text-slate-300'}`}>
+                                                        {system?.emoji} {system?.name}: {r?.emoji} {r?.label}
+                                                    </p>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Next actions */}
+                                <div className="bg-gradient-to-br from-violet-900/20 to-amber-900/20 rounded-2xl p-8 border border-amber-500/10">
+                                    <div className="text-center space-y-4">
+                                        {Object.values(userReactions).includes('probably-right') && (
+                                            <p className="text-amber-300/80 text-sm italic mb-4">
+                                                The patterns that make you flinch are the ones most worth sitting with.
+                                            </p>
+                                        )}
+
+                                        {/* Unexplored patterns */}
+                                        {detectedPatterns.length > 1 && detectedPatterns.some(p => !exploredPatternIds.includes(p.id)) && (
+                                            <div className="text-left mb-6">
+                                                <h4 className="font-display text-lg text-white mb-3 text-center">
+                                                    Other patterns we noticed
+                                                </h4>
+                                                <p className="text-slate-400 text-sm text-center mb-4">
+                                                    You explored one thread. Here are the others — each one is a different angle on what's underneath.
+                                                </p>
+                                                <div className="space-y-3">
+                                                    {detectedPatterns.filter(p => !exploredPatternIds.includes(p.id)).map((pattern, idx) => (
+                                                        <button
+                                                            key={pattern.id}
+                                                            onClick={() => explorePattern(detectedPatterns.indexOf(pattern))}
+                                                            className="w-full text-left rounded-xl p-4 bg-white/5 border border-violet-500/20 hover:border-amber-500/30 hover:bg-white/10 transition-all"
+                                                        >
+                                                            <div className="flex items-center justify-between">
+                                                                <div>
+                                                                    <h5 className="font-display text-white">{pattern.name}</h5>
+                                                                    <p className="text-slate-400 text-sm">{pattern.description}</p>
+                                                                </div>
+                                                                <span className="text-slate-500 text-sm flex-shrink-0 ml-4">Explore →</span>
+                                                            </div>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* All explored, or single pattern */}
+                                        {(detectedPatterns.length <= 1 || detectedPatterns.every(p => exploredPatternIds.includes(p.id))) && (
+                                            <div className="flex gap-4 justify-center flex-wrap">
+                                                <button onClick={goToIntake}
+                                                    className="px-5 py-2.5 bg-white/5 text-slate-300 rounded-xl hover:bg-white/10 transition-all border border-white/10 text-sm">
+                                                    Explore a different question
+                                                </button>
+                                                <a href="https://cognitivecouncil.com"
+                                                    className="px-6 py-2.5 bg-gradient-to-r from-blue-500/80 to-indigo-500/80 text-white rounded-xl hover:from-blue-500 hover:to-indigo-500 transition-all text-sm">
+                                                    Take a new question to Council →
+                                                </a>
+                                            </div>
+                                        )}
+
+                                        <p className="text-slate-600 text-xs pt-2">
+                                            Insight → Decision → Insight → ...
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Back to stepped view */}
+                                <div className="text-center">
+                                    <button onClick={() => { setRevealComplete(false); setCurrentStep(0); window.scrollTo({top:0,behavior:'smooth'}); }}
+                                        className="text-slate-500 text-xs hover:text-slate-400 underline">
+                                        ← Back to stepped view
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ─── Footer ─── */}
+                        {!['loading', 'gate'].includes(stage) && (
+                            <div className="mt-12 pt-6 border-t border-white/5">
+                                <div className="text-center space-y-3">
+                                    <p className="text-slate-600 text-xs">
+                                        <strong className="text-slate-500">Privacy:</strong> Conversations are processed through Anthropic's Claude API. 
+                                        No data is stored by this application.{' '}
+                                        <a href="https://www.anthropic.com/legal/privacy" target="_blank" rel="noopener noreferrer" className="text-amber-500/40 hover:text-amber-400">
+                                            Learn more
+                                        </a>
+                                    </p>
+                                    <p className="text-slate-700 text-xs">
+                                        Created by Nicole Scheid & Claude (Anthropic) · v2.4
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<CognitiveCounsel />, document.getElementById('root'));
+    </script>
+</body>
+</html>
