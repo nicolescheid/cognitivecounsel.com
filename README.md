@@ -1,75 +1,56 @@
 # Cognitive Counsel
 
-> Pattern illumination through five cognitive systems.
+> A thinking tool for examining a recurring pattern in yourself.
 
-[cognitivecounsel.com](https://cognitivecounsel.com) — the sister site to [Cognitive Council](https://cognitivecouncil.com). Where Council gives you **multiple perspectives on your question**, Counsel turns the mirror around and illuminates the **patterns underneath** — the things you can't see about yourself because you're inside them.
+[cognitivecounsel.com](https://cognitivecounsel.com) — the sister site to [Cognitive Council](https://cognitivecouncil.com). **Council** helps with the specific decision in front of you; **Counsel** is for the pattern that turns up across a lot of them — the thing you catch yourself doing again and again.
 
-It's designed to be used after Council (a "from=council" handoff carries your session and reactions through), but also works as a direct entry point if you want to go straight to pattern work.
+It isn't a chatbot, and it won't tell you who you are. The looking stays yours: you name a pattern, the tool points to the cognitive tendencies that *might* sit underneath it and the established exercises you can use to examine it yourself. A map and a librarian, never an oracle.
 
 ## How it flows
 
-1. **Loading / Gate / Transition** — three mount-time entry points:
-   - **Transition**: arriving from Council via `?from=council&t=...` — your Council session is restored and a "Why do I…" pattern question is pre-suggested.
-   - **Gate**: no Council history detected — encourages starting with Council first, with an option to skip ahead.
-   - **Intake**: returning visitor or skip-ahead — direct entry into pattern work.
-2. **Counsel Socratic intake** — 2-3 short threshold questions tailored to whether you came from Council.
-3. **Pattern detection** — the system reads your full context and identifies 1-3 distinct patterns operating in your question, each named and described in a single line.
-4. **Pattern selection** — you choose which pattern to explore first. Already-explored ones are marked so you can come back for the others.
-5. **Stepped illumination** — the five systems analyse the chosen pattern in parallel, then reveal one card at a time so you can sit with each before moving on.
-6. **Full overview** — see all five at once, copy/PDF, return to other detected patterns, or take a new question to Council.
+1. **Welcome** — what the tool is (and isn't).
+2. **Query** — name a pattern you keep noticing ("Why do I always…").
+3. **Socratic intake** — the tool privately reads your pattern and generates 4 tailored questions: a concrete recent instance, where else it shows up (breadth), what it might protect or cost (function), and your history with it. *You* do the looking; answers stay in your browser.
+4. **Guide** — two things, neither a verdict about you:
+   - **What might be underneath** *(conditional)* — when a well-established mechanism is genuinely relevant, it's surfaced as a tappable primer. Framed as a possibility ("might"), never the explanation for who you are. Skipped when nothing clearly fits.
+   - **Exercises to examine it yourself** — 2–3 established techniques for looking at a pattern (ABC / functional analysis, values clarification, behavioural experiments, if-then plans), drawn from named traditions (CBT, ACT, behavioural science), each with a "why this might fit" from your own words.
+5. **Exercise** — step through a chosen exercise interactively, filling it in yourself. At the end you see your own words back, with a closing question (never an interpretation), and can copy or download your work.
 
-## The five systems
+### Design principles ("the line we hold")
 
-Each system has the same role as in Council, refocused on pattern recognition rather than decision support:
+This is the **dispositional** sibling of Council's situational tool, built to the same anti-oracle rules:
 
-| System | Pattern lens |
-|---|---|
-| 🧠 **Prefrontal Cortex** | Decision patterns, strategic blind spots |
-| ❤️ **Limbic System** | Emotional patterns, what you avoid feeling |
-| ⚙️ **Basal Ganglia** | Behavioral patterns, the gap between what you say and do |
-| 🌊 **Default Mode Network** | Identity patterns, the story you live without knowing it |
-| ⚡ **Salience Network** | Attention patterns, what you focus on to avoid what matters |
+- **The engine reasons, but never narrates a verdict about the user.** It picks which primers and exercises to surface; it does **not** name, diagnose, or "illuminate" your pattern. You named it — the tool helps you investigate it.
+- **Hypotheses, not diagnoses.** Mechanisms are always "what *might* be underneath."
+- **Whitelist of mechanisms.** The model may only name mechanisms in the vetted, static primer set (`primers` in `index.html`, shared verbatim with Council). Keeps replication-failed pop-neuroscience out by construction.
+- **Established, not outdated.** Exercises are recognised techniques in current use; a `BLOCKLIST` excludes discredited ones.
+- **Open loop.** The exercise leaves with you. The AI never grades or interprets your answers.
+- **House style.** Copy and generated text follow `HOUSE_STYLE` (shared with Council) to avoid AI-writing tells.
+
+### What changed from v2.4
+
+The old Counsel was an oracle: it *detected and named your patterns* ("The Permission Seeker…"), had five voices *illuminate* them, and leaned on a "probably right but not ready to admit it" flinch signal. That whole engine is gone. The intake survives, reframed; everything downstream is now education + self-directed exercises. The Council→Counsel token handoff is also removed — the two are sister sites that link to each other, not a funnel.
 
 ## Tech
 
 Single-file static site — no build step required.
 
-- React 18 (UMD, in-browser)
-- Babel standalone (in-browser JSX transform)
-- Tailwind CSS (CDN)
-- jsPDF (PDF export)
-- marked + DOMPurify (sanitised markdown rendering)
+- React 18 (UMD, in-browser) · Babel standalone · Tailwind (CDN) · jsPDF · marked + DOMPurify
 
-Backend dependencies (separate services):
-- `api.cognitivecouncil.com` — Anthropic Claude API proxy (shared with Council)
-- `transfer.cognitivecouncil.com` — short-lived session token store for the Council → Counsel handoff
+Backend dependency (shared with Council):
+- `api.cognitivecouncil.com/api/chat` — Anthropic Claude API proxy. The client sends the full prompt in `message` with a `systemRole` label (`intake_analyst`, `question_generator`, `guide_select`, `exercise_build`).
 
 ## Running locally
 
-It's just an HTML file:
-
 ```bash
 python -m http.server 8000
-# or
-npx serve .
 ```
 
-Then open `http://localhost:8000`.
-
-API calls hit the production backend, so you need network access for the systems to actually respond.
-
-## Recent changes (v2.4)
-
-- **Parallel pattern analysis** — the five systems now examine your pattern concurrently (previously sequential, ~2-3 min wait → ~30-45s with progressive feedback).
-- **Per-card retry** — individual systems can be retried if they fail without redoing the whole illumination.
-- **Exponential backoff** in `callAPI` for transient errors.
-- **Toast notifications** replace the old `alert()` dialogs.
-- **DOMPurify** sanitisation on all rendered markdown.
-- **Session persistence** — in-progress state saved to localStorage with a resume banner on return (24h TTL). The longer multi-step Counsel funnel (intake → questions → detection → selection → illumination) is no longer destroyed by a stray refresh.
+Then open `http://localhost:8000`. API calls hit the production backend, so you need network access for intake and exercises to generate.
 
 ## Privacy
 
-Conversations are processed through Anthropic's Claude API. No data is stored by this application. Anthropic retains conversations for 30 days for safety monitoring — see their [privacy policy](https://www.anthropic.com/legal/privacy).
+Your answers and exercise responses stay in your browser (localStorage). Intake questions and exercise scaffolds are generated through Anthropic's Claude API; nothing you write is stored by this application. Anthropic retains API conversations for 30 days for safety monitoring — see their [privacy policy](https://www.anthropic.com/legal/privacy).
 
 Google Analytics is loaded only after user consent via the cookie banner.
 
